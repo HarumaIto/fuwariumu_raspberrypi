@@ -1,5 +1,4 @@
 
-"""音声録音コンポーネント"""
 import wave
 import pyaudio
 

@@ -1,4 +1,3 @@
-import time
 import smbus
 i2c = smbus.SMBus(1)
 
@@ -61,29 +60,18 @@ def getTSL2572adc() :
     adc1 = (dat[3] << 8) | dat[2]
     return[adc0,adc1]
 
-def main():
-    print("init....")
+
+def readData() -> dict[str, float]:
     if (initTSL2572()!=0) :
         print("Failed. Check connection!!")
         return
 
-    while 1:
-        adc = getTSL2572adc()
+    adc = getTSL2572adc()
+    cpl = (2.73 * (256 - ATIME) * GAIN)/(60.0)
+    lux1 = ((adc[0] * 1.00) - (adc[1] * 1.87)) / cpl
+    lux2 = ((adc[0] * 0.63) - (adc[1] * 1.00)) / cpl
+    lux = max(lux1, lux2, 0)
+    return {"adc0": adc[0], "adc1": adc[1], "lux": lux}
 
-        cpl = 0.0
-        lux1 = 0.0
-        lux2 = 0.0
-        cpl = (2.73 * (256 - ATIME) * GAIN)/(60.0)
-        lux1 = ((adc[0] * 1.00) - (adc[1] * 1.87)) / cpl
-        lux2 = ((adc[0] * 0.63) - (adc[1] * 1.00)) / cpl
-        if ((lux1 <= 0) and (lux2 <= 0)) :
-            print("0 Lx")
-        elif (lux1 > lux2) :
-            print("{:.1f} Lx".format(lux1))
-        elif (lux1 < lux2) :
-            print("{:.1f} Lx".format(lux2))
-        time.sleep(0.2)
-
-if __name__ == "__main__":
-    main()
-    
+def init():
+    initTSL2572()

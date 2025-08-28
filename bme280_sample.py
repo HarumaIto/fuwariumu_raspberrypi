@@ -55,7 +55,7 @@ def get_calib_param():
         if digH[i] & 0x8000:
             digH[i] = (-digH[i] ^ 0xFFFF) + 1  
 
-def readData():
+def readData() -> dict[str, float]:
     data = []
     for i in range (0xF7, 0xF7+8):
         data.append(bus.read_byte_data(i2c_address,i))
@@ -63,11 +63,12 @@ def readData():
     temp_raw = (data[3] << 12) | (data[4] << 4) | (data[5] >> 4)
     hum_raw  = (data[6] << 8)  |  data[7]
     
-    compensate_T(temp_raw)
-    compensate_P(pres_raw)
-    compensate_H(hum_raw)
+    temperature = compensate_T(temp_raw)
+    pressure = compensate_P(pres_raw)
+    humidity = compensate_H(hum_raw)
+    return {"temperature": temperature, "pressure": pressure, "humidity": humidity}
 
-def compensate_P(adc_P):
+def compensate_P(adc_P: float) -> float:
     global  t_fine
     pressure = 0.0
     
@@ -79,7 +80,7 @@ def compensate_P(adc_P):
     v1 = ((32768 + v1) * digP[0]) / 32768
     
     if v1 == 0:
-        return 0
+        return 0.0
     pressure = ((1048576 - adc_P) - (v2 / 4096)) * 3125
     if pressure < 0x80000000:
         pressure = (pressure * 2.0) / v1
@@ -90,28 +91,31 @@ def compensate_P(adc_P):
     pressure = pressure + ((v1 + v2 + digP[6]) / 16.0)  
 
     print(f"pressure : {pressure/100:7.2f} hPa")
+    return pressure/100
 
-def compensate_T(adc_T):
+def compensate_T(adc_T: float) -> float:
     global t_fine
     v1 = (adc_T / 16384.0 - digT[0] / 1024.0) * digT[1]
     v2 = (adc_T / 131072.0 - digT[0] / 8192.0) * (adc_T / 131072.0 - digT[0] / 8192.0) * digT[2]
     t_fine = v1 + v2
     temperature = t_fine / 5120.0
     print(f"temp : {temperature:-6.2f} ℃") 
+    return temperature 
 
-def compensate_H(adc_H):
+def compensate_H(adc_H: float) -> float:
     global t_fine
     var_h = t_fine - 76800.0
     if var_h != 0:
         var_h = (adc_H - (digH[3] * 64.0 + digH[4]/16384.0 * var_h)) * (digH[1] / 65536.0 * (1.0 + digH[5] / 67108864.0 * var_h * (1.0 + digH[2] / 67108864.0 * var_h)))
     else:
-        return 0
+        return 0.0
     var_h = var_h * (1.0 - digH[0] * var_h / 524288.0)
     if var_h > 100.0:
         var_h = 100.0
     elif var_h < 0.0:
         var_h = 0.0
-    print(f"hum : {var_h:6.2f} ％")
+    print(f"hum : {var_h:6.2f} %")
+    return var_h
 
 
 def setup():
@@ -131,18 +135,9 @@ def setup():
     writeReg(0xF4,ctrl_meas_reg)
     writeReg(0xF5,config_reg)
 
-
-setup()
-get_calib_param()
-
-
-if __name__ == '__main__':
-    try:
-        readData()
-    except KeyboardInterrupt:
-        pass
-
-
+def init():
+    setup()
+    get_calib_param()
 
 
 
