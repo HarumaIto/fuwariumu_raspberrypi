@@ -4,7 +4,7 @@ import simpleaudio as sa
 import matplotlib.pyplot as plt
 from gpiozero import RGBLED
 from gpiozero.pins.pigpio import PiGPIOFactory
-from time import sleep
+from time import sleep, perf_counter
 
 PIN_RED=5
 PIN_GREEN=6
@@ -34,31 +34,37 @@ def led_blink_reflect_music(led, mono_audio, play_obj):
 	samples = samples.astype(np.float32) / np.iinfo(samples.dtype).max
 	
 	actual_max_amplitude = np.max(np.abs(samples))
-	if actual_max_amplitude == 0:
-	 	actual_max_amplitude = 1
-
+	
 	sample_rate = mono_audio.frame_rate
 	chunk_size = int(sample_rate * 0.01)
-	
-	current_sample_index = 0
+
+	current_time = 0
 
 	while play_obj.is_playing():
-		chunk_start = current_sample_index
-		chunk_end = min(current_sample_index + chunk_size, len(samples))
+		start_time = perf_counter()
+		current_sample = int(current_time * sample_rate)
+
+		chunk_start = current_sample 
+		chunk_end = min(current_sample + chunk_size, len(samples))
 		if chunk_start >= chunk_end:
 			break
-		
+
+		print(current_time)		
 		chunk = samples[chunk_start:chunk_end]
 
 		amplitude = np.mean(np.abs(chunk))
 
-		normalized_amplitude = (amplitude / actual_max_amplitude) * GAIN
+		normalized_amplitude = (amplitude / actual_max_amplitude) 
 		normalized_amplitude = np.sqrt(normalized_amplitude)
 		normalized_amplitude = max(0.0, min(1.0, normalized_amplitude))		
 
 		led.color = hsv_to_rgb(normalized_amplitude, normalized_amplitude, normalized_amplitude) 
-
-		sleep(0.005)
+		
+		end_time = perf_counter()
+		elpased_time = (end_time - start_time) / 60	
+		sleep_time = 0.005	
+		current_time = current_time + (sleep_time + elpased_time)
+		sleep(sleep_time)
 	
 	led.off()
 
