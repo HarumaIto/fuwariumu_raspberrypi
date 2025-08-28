@@ -28,11 +28,11 @@ def main():
 	# 基本色を順番に点灯
 	print("Red")
 	led.color = (1, 0, 0) # (R, G, B)のタプルで色を設定 (0.0 - 1.0)
-   	
+
 	print("Green")
 	led.color = (0, 1, 0)
 	sleep(1)
-   	 
+
 	print("Blue")
 	led.color = (0, 0, 1)
 	sleep(1)
@@ -56,7 +56,7 @@ def main():
 	print("Off")
 	led.color = (0, 0, 0) # 全てオフで消灯
 	sleep(1)
-   	 
+
 	# グラデーションを表現
 	print("Fading through the rainbow...")
 	steps = 100
@@ -67,7 +67,7 @@ def main():
 
 		led.color = (r, g, b)
 		sleep(0.05)
- 
+
 	led.off()
 	print("Program finished.")
 if __name__=="__main__":
