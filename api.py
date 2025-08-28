@@ -25,7 +25,7 @@ def post_data(mp3_path, bme280_data, tsl2572_data):
 
     headers = {"Content-Type": "application/json"}
 
-    response = requests.post(url, data=json.dumps(payload), headers=headers)
+    response = requests.post(url, json=payload, headers=headers)
 
     print("POST status:", response.status_code)
     print("bme280:", bme280_data)
