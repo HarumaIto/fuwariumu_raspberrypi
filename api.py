@@ -4,7 +4,7 @@ import json
 
 BASE_PATH = "http://192.168.111.254:8000"
 
-def post_data(mp3_path, bme280_data, tsl2572_data):
+def post_data(mp3_path, bme280_data, tsl2572_data) -> dict[str, str]:
     print("* posting data...")
     url = f"{BASE_PATH}/api/v1/data"
 
@@ -31,3 +31,14 @@ def post_data(mp3_path, bme280_data, tsl2572_data):
     print("bme280:", bme280_data)
     print("tsl2572:", tsl2572_data)
     print("* post done")
+
+    return response.json()
+
+def get_task(task_id: str) -> dict[str, any]:
+    url = f"{BASE_PATH}/api/v1/status/{task_id}"
+    response = requests.get(url)
+
+    if response.status_code != 200:
+        raise Exception(f"Failed to get task status: {response.status_code}")
+
+    return response.json()
