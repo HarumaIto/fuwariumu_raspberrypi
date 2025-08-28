@@ -1,5 +1,7 @@
-import pyaudio
+
+"""音声録音サンプルスクリプト"""
 import wave
+import pyaudio
 
 CHUNK = 1024
 FORMAT = pyaudio.paInt16
@@ -11,6 +13,7 @@ WAVE_OUTPUT_FILENAME = "output.wav"
 p = pyaudio.PyAudio()
 
 def main():
+    """音声を録音し、WAVファイルとして保存する。"""
     stream = p.open(format=FORMAT,
                     channels=CHANNELS,
                     rate=RATE,
@@ -20,7 +23,7 @@ def main():
 
     frames = []
 
-    for i in range(0, int(RATE / CHUNK * RECORD_SECONDS)):
+    for _ in range(0, int(RATE / CHUNK * RECORD_SECONDS)):
         data = stream.read(CHUNK)
         frames.append(data)
 
@@ -37,6 +40,7 @@ def main():
     wf.setframerate(RATE)
     wf.writeframes(b''.join(frames))
     wf.close()
+
 
 if __name__ == "__main__":
     main()
