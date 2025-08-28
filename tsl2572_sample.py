@@ -32,9 +32,9 @@ TSL2572_C0DATAH  = 0x15
 TSL2572_C1DATA   = 0x16
 TSL2572_C1DATAH  = 0x17
 
-#TSL2572 setings
-atime = 0xC0
-gain = 1.0
+#TSL2572 settings
+ATIME = 0xC0
+GAIN = 1.0
 
 def initTSL2572() :
     if (getTSL2572reg(TSL2572_ID)!=[0x34]) :
@@ -42,30 +42,30 @@ def initTSL2572() :
         return -1
     setTSL2572reg(TSL2572_COMMAND | TSL2572_TYPE_INC | TSL2572_CONTROL,0x00)
     setTSL2572reg(TSL2572_COMMAND | TSL2572_TYPE_INC | TSL2572_CONFIG,0x00)
-    setTSL2572reg(TSL2572_COMMAND | TSL2572_TYPE_INC | TSL2572_ATIME,atime)
+    setTSL2572reg(TSL2572_COMMAND | TSL2572_TYPE_INC | TSL2572_ATIME,ATIME)
     setTSL2572reg(TSL2572_COMMAND | TSL2572_TYPE_INC | TSL2572_ENABLE,TSL2572_AEN | TSL2572_PON)
     return 0
 
 def setTSL2572reg(reg,dat) :
-	i2c.write_byte_data(TSL2572_ADR,reg,dat)
+    i2c.write_byte_data(TSL2572_ADR,reg,dat)
 
 
 def getTSL2572reg(reg) :
-	dat = i2c.read_i2c_block_data(TSL2572_ADR,TSL2572_COMMAND | TSL2572_TYPE_INC | reg,1)
-	return dat
+    dat = i2c.read_i2c_block_data(TSL2572_ADR,TSL2572_COMMAND | TSL2572_TYPE_INC | reg,1)
+    return dat
 
 
 def getTSL2572adc() :
-        dat = i2c.read_i2c_block_data(TSL2572_ADR,TSL2572_COMMAND | TSL2572_TYPE_INC | TSL2572_C0DATA,4)
-        adc0 = (dat[1] << 8) | dat[0]
-        adc1 = (dat[3] << 8) | dat[2]
-        return[adc0,adc1]
+    dat = i2c.read_i2c_block_data(TSL2572_ADR,TSL2572_COMMAND | TSL2572_TYPE_INC | TSL2572_C0DATA,4)
+    adc0 = (dat[1] << 8) | dat[0]
+    adc1 = (dat[3] << 8) | dat[2]
+    return[adc0,adc1]
 
 def main():
     print("init....")
     if (initTSL2572()!=0) :
         print("Failed. Check connection!!")
-        sys.exit()
+        return
 
     while 1:
         adc = getTSL2572adc()
@@ -73,7 +73,7 @@ def main():
         cpl = 0.0
         lux1 = 0.0
         lux2 = 0.0
-        cpl = (2.73 * (256 - atime) * gain)/(60.0)
+        cpl = (2.73 * (256 - ATIME) * GAIN)/(60.0)
         lux1 = ((adc[0] * 1.00) - (adc[1] * 1.87)) / cpl
         lux2 = ((adc[0] * 0.63) - (adc[1] * 1.00)) / cpl
         if ((lux1 <= 0) and (lux2 <= 0)) :
@@ -85,5 +85,5 @@ def main():
         time.sleep(0.2)
 
 if __name__ == "__main__":
-	main()
-
+    main()
+    

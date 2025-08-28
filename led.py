@@ -4,7 +4,7 @@ from time import sleep
 
 PIN_RED=5
 PIN_GREEN=6
-PIN_BLUE=13 
+PIN_BLUE=13
 
 def hsv_to_rgb(h, s, v):
 	if s == 0.0: return (v, v, v)
@@ -24,7 +24,7 @@ def main():
 	led = RGBLED(PIN_RED, PIN_GREEN, PIN_BLUE, pin_factory=factory) 
 
 	print("Cycling through basic colors...")
-    
+	
 	# 基本色を順番に点灯
 	print("Red")
 	led.color = (1, 0, 0) # (R, G, B)のタプルで色を設定 (0.0 - 1.0)
@@ -70,12 +70,7 @@ def main():
 
 	led.off()
 	print("Program finished.")
+
 if __name__=="__main__":
-	main()	
-
-
-
-
-
-
-
+	main()
+	
