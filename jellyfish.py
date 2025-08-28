@@ -1,34 +1,10 @@
-from pydub import AudioSegment
 import numpy as np
-import simpleaudio as sa
 import matplotlib.pyplot as plt
-from gpiozero import RGBLED
-from gpiozero.pins.pigpio import PiGPIOFactory
 from time import sleep, perf_counter
-from led import hsv_to_rgb
-
-PIN_RED=5
-PIN_GREEN=6
-PIN_BLUE=13
-
-AUDIO_FILE = "/home/intern/Music/school_hallway_sound.mp3"
+from led import hsv_to_rgb, init_led
+from play_audio import get_audio_data, play_audio
 
 GAIN = 5
-
-def init_led():
-    factory=PiGPIOFactory()
-    led = RGBLED(PIN_RED, PIN_GREEN, PIN_BLUE, pin_factory=factory)
-    return led
-
-def get_audio_data():
-    audio = AudioSegment.from_mp3(AUDIO_FILE)
-    mono_audio = audio.set_channels(1)
-    return mono_audio
-
-def play_audio(mono_audio):
-    playback_data = mono_audio.raw_data
-    play_obj = sa.play_buffer(playback_data, 1, 2, mono_audio.frame_rate)
-    return play_obj
 
 def led_blink_reflect_music(led, mono_audio, play_obj):
     samples = np.array(mono_audio.get_array_of_samples())

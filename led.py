@@ -6,6 +6,11 @@ PIN_RED=5
 PIN_GREEN=6
 PIN_BLUE=13
 
+def init_led():
+    factory=PiGPIOFactory()
+    led = RGBLED(PIN_RED, PIN_GREEN, PIN_BLUE, pin_factory=factory)
+    return led
+
 def hsv_to_rgb(h, s, v):
     if s == 0.0: return (v, v, v)
     i = int(h*6)
@@ -20,8 +25,7 @@ def hsv_to_rgb(h, s, v):
     if i == 5: return (v, p, q)
 
 def main():
-    factory=PiGPIOFactory()
-    led = RGBLED(PIN_RED, PIN_GREEN, PIN_BLUE, pin_factory=factory) 
+    led = init_led()
 
     print("Cycling through basic colors...")
     
