@@ -10,6 +10,7 @@ from api import post_data, get_task
 from led import init_led
 from play_audio import get_audio_data, play_audio
 from jellyfish import led_blink_reflect_music
+from switch import setup_switch
 
 # --- 設定項目 ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -19,7 +20,7 @@ RECORDING_SECONDS = 5
 LOOP_SLEEP_SECONDS = 10
 
 # --- グローバル変数 ---
-# NOTE: 大規模なアプリケーションでは、状態管理のためのクラスの使用を検討
+led_strip = None
 task_ids = []
 
 def wav_to_mp3(wav_path: str, mp3_path: str) -> bool:
@@ -62,6 +63,7 @@ def play_completed_task(led_strip, task_response: dict):
 def check_and_execute_tasks(led_strip):
     """APIでタスクの状態を確認し、完了していれば再生処理を実行する"""
     if not task_ids:
+        logging.info("チェック対象のタスクがありません。")
         return
         
     logging.info(f"{len(task_ids)}個のタスクの状態を確認します。")
@@ -75,6 +77,8 @@ def check_and_execute_tasks(led_strip):
         if task_info.get("status") == "completed":
             play_completed_task(led_strip, task_info)
             task_ids.remove(task_id)
+            # 完了したタスクが見つかったら再生して終了
+            break
         elif task_info.get("status") == "failed":
             logging.error(f"タスク {task_id} は失敗しました。理由: {task_info.get('result')}")
             task_ids.remove(task_id)
@@ -99,19 +103,28 @@ def record_and_post_data():
     else:
         logging.error("データの投稿に失敗したか、レスポンスにtask_idが含まれていません。")
 
+def handle_switch_press():
+    """
+    スイッチが押された時に呼び出されるコールバック関数。
+    完了済みのタスクを確認して再生する。
+    """
+    global led_strip
+    logging.info("スイッチが押されました。完了したタスクを確認します。")
+    check_and_execute_tasks(led_strip)
+
 def main():
     """アプリケーションのメイン関数"""
-    led_strip = None
+    global led_strip
     try:
         led_strip = init_led()
         bme280_sample.init()
         tsl2572_sample.init()
+        setup_switch(handle_switch_press)
 
         logging.info("アプリケーションを開始します。")
         while True:
-            check_and_execute_tasks(led_strip)
             record_and_post_data()
-            logging.info(f"サイクル完了。{LOOP_SLEEP_SECONDS}秒待機します。")
+            logging.info(f"録音サイクル完了。{LOOP_SLEEP_SECONDS}秒待機します。")
             time.sleep(LOOP_SLEEP_SECONDS)
 
     except KeyboardInterrupt:
