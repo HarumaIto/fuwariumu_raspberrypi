@@ -1,4 +1,8 @@
+import logging
+import time
 from pydub import AudioSegment
+
+# プロジェクト内のモジュール
 import bme280_sample
 import tsl2572_sample
 from record_sample import record_audio
@@ -7,59 +11,117 @@ from led import init_led
 from play_audio import get_audio_data, play_audio
 from jellyfish import led_blink_reflect_music
 
+# --- 設定項目 ---
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 WAVE_OUTPUT_FILENAME = "output.wav"
 MP3_OUTPUT_FILENAME = "output.mp3"
+RECORDING_SECONDS = 5
+LOOP_SLEEP_SECONDS = 10
 
+# --- グローバル変数 ---
+# NOTE: 大規模なアプリケーションでは、状態管理のためのクラスの使用を検討
 task_ids = []
 
-def wav_to_mp3():
-    print("* converting wav to mp3...")
-    audio = AudioSegment.from_wav(WAVE_OUTPUT_FILENAME)
-    audio.export(MP3_OUTPUT_FILENAME, format="mp3")
-    print("* mp3 saved")
+def wav_to_mp3(wav_path: str, mp3_path: str) -> bool:
+    """WAVファイルをMP3形式に変換する"""
+    logging.info(f"{wav_path} を {mp3_path} に変換します...")
+    try:
+        audio = AudioSegment.from_wav(wav_path)
+        audio.export(mp3_path, format="mp3")
+        logging.info("変換が完了しました。")
+        return True
+    except FileNotFoundError:
+        logging.error(f"WAVファイルが見つかりません: {wav_path}")
+        return False
+    except Exception as e:
+        logging.error(f"MP3への変換中にエラーが発生しました: {e}")
+        return False
 
-def get_bme280_data() -> dict[str, float]:
-    return bme280_sample.readData()
+def play_completed_task(led_strip, task_response: dict):
+    """完了したタスクの音声とLEDパターンを再生する"""
+    logging.info(f"タスク完了。結果: {task_response.get('result')}")
+    try:
+        audio_data = get_audio_data()
+        if not audio_data:
+            logging.error("再生用の音声データを取得できませんでした。")
+            return
 
-def get_tsl2572_data() -> dict[str, float]:
-    return tsl2572_sample.readData()
+        play_obj = play_audio(audio_data)
+        if not play_obj:
+            logging.error("音声再生を開始できませんでした。")
+            return
+        
+        logging.info("音声とLEDパターンの再生を開始します。")
+        led_blink_reflect_music(led_strip, audio_data, play_obj)
+        
+        logging.info("再生が完了しました。")
+        
+    except Exception as e:
+        logging.error(f"音声・LEDの再生中にエラーが発生しました: {e}")
 
-def check_response_play_audio(led):
-    for task_id in task_ids:
-        response = get_task(task_id)
-        if response["status"] == "completed":
-            print(f"Task {task_id} completed. Result: {response['result']}")
-            
-            led = init_led()
-            audio_data = get_audio_data()
-            play_obj = play_audio(audio_data)
-            
-            print("Playing audio")
-            led_blink_reflect_music(led, audio_data, play_obj)
-            
-            play_obj.wait_done()
-            print("Program finished.")
-            
+def check_and_execute_tasks(led_strip):
+    """APIでタスクの状態を確認し、完了していれば再生処理を実行する"""
+    if not task_ids:
+        return
+        
+    logging.info(f"{len(task_ids)}個のタスクの状態を確認します。")
+    # リストのコピーに対してループを回し、安全な要素の削除を可能にする
+    for task_id in task_ids[:]:
+        task_info = get_task(task_id)
+        if not task_info:
+            logging.error(f"タスク {task_id} の状態取得に失敗しました。")
+            continue
+
+        if task_info.get("status") == "completed":
+            play_completed_task(led_strip, task_info)
+            task_ids.remove(task_id)
+        elif task_info.get("status") == "failed":
+            logging.error(f"タスク {task_id} は失敗しました。理由: {task_info.get('result')}")
             task_ids.remove(task_id)
 
-def main():
-    led = init_led()
-    bme280_sample.init()
-    tsl2572_sample.init()
+def record_and_post_data():
+    """録音、センサーデータ取得、APIへのデータ投稿を行う"""
+    if not record_audio(RECORDING_SECONDS, WAVE_OUTPUT_FILENAME):
+        logging.error("録音に失敗しました。このサイクルをスキップします。")
+        return
 
-    for _ in range(3):
-        if len(task_ids) != 0:
-            check_response_play_audio(led)
+    if not wav_to_mp3(WAVE_OUTPUT_FILENAME, MP3_OUTPUT_FILENAME):
+        logging.error("MP3への変換に失敗しました。このサイクルをスキップします。")
+        return
 
-        record_audio(5, WAVE_OUTPUT_FILENAME)
-        wav_to_mp3()
-        bme280_data = get_bme280_data()
-        tsl2572_data = get_tsl2572_data()
+    bme_data = bme280_sample.readData()
+    tsl_data = tsl2572_sample.readData()
 
-        response = post_data(MP3_OUTPUT_FILENAME, bme280_data, tsl2572_data)
+    response = post_data(MP3_OUTPUT_FILENAME, bme_data, tsl_data)
+    if response and "task_id" in response:
+        logging.info(f"データの投稿に成功しました。Task ID: {response['task_id']}")
         task_ids.append(response["task_id"])
+    else:
+        logging.error("データの投稿に失敗したか、レスポンスにtask_idが含まれていません。")
 
-    check_response_play_audio(led)
+def main():
+    """アプリケーションのメイン関数"""
+    led_strip = None
+    try:
+        led_strip = init_led()
+        bme280_sample.init()
+        tsl2572_sample.init()
+
+        logging.info("アプリケーションを開始します。")
+        while True:
+            check_and_execute_tasks(led_strip)
+            record_and_post_data()
+            logging.info(f"サイクル完了。{LOOP_SLEEP_SECONDS}秒待機します。")
+            time.sleep(LOOP_SLEEP_SECONDS)
+
+    except KeyboardInterrupt:
+        logging.info("シャットダウンシグナルを受信しました。")
+    except Exception as e:
+        logging.critical(f"メインループで予期せぬエラーが発生しました: {e}", exc_info=True)
+    finally:
+        if led_strip:
+            led_strip.off()
+        logging.info("アプリケーションをシャットダウンしました。")
 
 if __name__ == "__main__":
     main()
