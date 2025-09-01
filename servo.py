@@ -22,7 +22,7 @@ def move_servo_at_speed(servo, start_angle, end_angle, duration_sec, steps=100):
 	"""
 	angle_diff = end_angle - start_angle
 	angle_per_step = angle_diff / steps
-	delay_per_step = duration_serc / steps
+	delay_per_step = duration_sec / steps
 
 	for i in range(steps + 1):
 		current_angle = start_angle + angle_per_step * i
@@ -39,13 +39,13 @@ def main():
 		for _ in range(5):
 			move_servo_at_speed(servo_12, -90, 75, 2)
 			move_servo_at_speed(servo_13, -90, 75, 2) 
-            		sleep(1)
+			sleep(1)
 			move_servo_at_speed(servo_12, 75, -90, 3)
 			move_servo_at_speed(servo_13, 75, -90, 3)
-            		sleep(1)
-    	except KeyboardInterrupt:
-       		 print("stop")
-    	return
+			sleep(1)
+	except KeyboardInterrupt:
+		print("stop")
+	return
 
 
 if __name__ == "__main__":
