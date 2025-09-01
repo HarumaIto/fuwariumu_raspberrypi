@@ -6,9 +6,9 @@ import logging
 # loggingの設定
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-PIN_RED=5
-PIN_GREEN=6
-PIN_BLUE=13
+PIN_RED=17
+PIN_GREEN=27
+PIN_BLUE=22
 
 def init_led():
     try:
