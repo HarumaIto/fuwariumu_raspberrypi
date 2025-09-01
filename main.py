@@ -128,6 +128,7 @@ def main():
 
         logging.info("アプリケーションを開始します。")
         while True:
+		check_and_execute_tasks(led_strip)
             record_and_post_data()
             logging.info(f"録音サイクル完了。{LOOP_SLEEP_SECONDS}秒待機します。")
             time.sleep(LOOP_SLEEP_SECONDS)
