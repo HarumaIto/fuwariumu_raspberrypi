@@ -16,24 +16,37 @@ class Servo:
     def set_angle(self, angle):
         self.servo.angle = angle
 
+def move_servo_at_speed(servo, start_angle, end_angle, duration_sec, steps=100):
+	"""
+	指定した角度で指定した時間でサーボを動かす
+	"""
+	angle_diff = end_angle - start_angle
+	angle_per_step = angle_diff / steps
+	delay_per_step = duration_serc / steps
+
+	for i in range(steps + 1):
+		current_angle = start_angle + angle_per_step * i
+		servo.angle = current_angle
+		sleep(delay_per_step)
 
 def main():
-    servo_12 = Servo(12)
-    servo_13 = Servo(13)
-    try:
-        for _ in range(5):
-            servo_12.set_angle(60)
-            servo_13.set_angle(60)
-            print("60")
-            sleep(1)
-            servo_12.set_angle(-60)
-            servo_13.set_angle(-60)
-            print("-60")
-            sleep(1)
-    except KeyboardInterrupt:
-        print("stop")
-    return
+	servo_12 = Servo(12)
+	servo_13 = Servo(13)
+	try:
+		servo_12.set_angle(-90)
+		servo_13.set_angle(-90)
+
+		for _ in range(5):
+	    		move_servo_at_speed(servo_12, -90, 75, 2)
+           		move_servo_at_speed(servo_13, -90, 75, 2) 
+            		sleep(1)
+			move_servo_at_speed(servo_12, 75, -90, 3)
+			move_servo_at_speed(servo_13, 75, -90, 3)
+            		sleep(1)
+    	except KeyboardInterrupt:
+       		 print("stop")
+    	return
 
 
 if __name__ == "__main__":
-    main()
+    	main()
