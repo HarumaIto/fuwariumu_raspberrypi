@@ -1,15 +1,23 @@
 import requests
 import base64
 import json
+import logging
+
+# loggingの設定
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 BASE_PATH = "http://192.168.111.254:8000"
 
-def post_data(mp3_path, bme280_data, tsl2572_data) -> dict[str, str]:
+def post_data(mp3_path, bme280_data, tsl2572_data) -> dict[str, str] | None:
     print("* posting data...")
     url = f"{BASE_PATH}/api/v1/data"
 
-    with open(mp3_path, "rb") as f:
-        audio_data = base64.b64encode(f.read()).decode("utf-8")
+    try:
+        with open(mp3_path, "rb") as f:
+            audio_data = base64.b64encode(f.read()).decode("utf-8")
+    except FileNotFoundError:
+        logging.error(f"音声ファイルが見つかりません: {mp3_path}")
+        return None
 
     environmental_data = {
         "temperature": bme280_data["temperature"],
@@ -25,20 +33,33 @@ def post_data(mp3_path, bme280_data, tsl2572_data) -> dict[str, str]:
 
     headers = {"Content-Type": "application/json"}
 
-    response = requests.post(url, json=payload, headers=headers)
+    try:
+        response = requests.post(url, json=payload, headers=headers, timeout=10)
+        response.raise_for_status()  # ステータスコードが200番台でない場合に例外を発生させる
 
-    print("POST status:", response.status_code)
-    print("bme280:", bme280_data)
-    print("tsl2572:", tsl2572_data)
-    print("* post done")
+        print("POST status:", response.status_code)
+        print("bme280:", bme280_data)
+        print("tsl2572:", tsl2572_data)
+        print("* post done")
 
-    return response.json()
+        return response.json()
+    except requests.exceptions.RequestException as e:
+        logging.error(f"APIへのデータ送信に失敗しました: {e}")
+        return None
+    except json.JSONDecodeError as e:
+        logging.error(f"レスポンスJSONのデコードに失敗しました: {e}")
+        return None
 
-def get_task(task_id: str) -> dict[str, any]:
+
+def get_task(task_id: str) -> dict[str, any] | None:
     url = f"{BASE_PATH}/api/v1/status/{task_id}"
-    response = requests.get(url)
-
-    if response.status_code != 200:
-        raise Exception(f"Failed to get task status: {response.status_code}")
-
-    return response.json()
+    try:
+        response = requests.get(url, timeout=10)
+        response.raise_for_status()
+        return response.json()
+    except requests.exceptions.RequestException as e:
+        logging.error(f"タスクステータスの取得に失敗しました: {e}")
+        return None
+    except json.JSONDecodeError as e:
+        logging.error(f"レスポンスJSONのデコードに失敗しました: {e}")
+        return None

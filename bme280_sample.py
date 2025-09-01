@@ -1,9 +1,17 @@
 import smbus
+import logging
+
+# loggingの設定
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 bus_number  = 1
 i2c_address = 0x76
 
-bus = smbus.SMBus(bus_number)
+try:
+    bus = smbus.SMBus(bus_number)
+except (FileNotFoundError, PermissionError) as e:
+    logging.error(f"I2Cバスの初期化に失敗しました: {e}")
+    bus = None
 
 digT = []
 digP = []
@@ -13,60 +21,89 @@ t_fine = 0.0
 
 
 def writeReg(reg_address, data):
-    bus.write_byte_data(i2c_address,reg_address,data)
+    if bus is None:
+        logging.error("I2Cバスが利用できません。")
+        return
+    try:
+        bus.write_byte_data(i2c_address,reg_address,data)
+    except IOError as e:
+        logging.error(f"レジスタ書き込みに失敗しました: {e}")
 
 def get_calib_param():
-    calib = []
+    if bus is None:
+        logging.error("I2Cバスが利用できません。")
+        return
+    try:
+        calib = []
 
-    for i in range (0x88,0x88+24):
-        calib.append(bus.read_byte_data(i2c_address,i))
-    calib.append(bus.read_byte_data(i2c_address,0xA1))
-    for i in range (0xE1,0xE1+7):
-        calib.append(bus.read_byte_data(i2c_address,i))
+        for i in range (0x88,0x88+24):
+            calib.append(bus.read_byte_data(i2c_address,i))
+        calib.append(bus.read_byte_data(i2c_address,0xA1))
+        for i in range (0xE1,0xE1+7):
+            calib.append(bus.read_byte_data(i2c_address,i))
 
-    digT.append((calib[1] << 8) | calib[0])
-    digT.append((calib[3] << 8) | calib[2])
-    digT.append((calib[5] << 8) | calib[4])
-    digP.append((calib[7] << 8) | calib[6])
-    digP.append((calib[9] << 8) | calib[8])
-    digP.append((calib[11]<< 8) | calib[10])
-    digP.append((calib[13]<< 8) | calib[12])
-    digP.append((calib[15]<< 8) | calib[14])
-    digP.append((calib[17]<< 8) | calib[16])
-    digP.append((calib[19]<< 8) | calib[18])
-    digP.append((calib[21]<< 8) | calib[20])
-    digP.append((calib[23]<< 8) | calib[22])
-    digH.append( calib[24] )
-    digH.append((calib[26]<< 8) | calib[25])
-    digH.append( calib[27] )
-    digH.append((calib[28]<< 4) | (0x0F & calib[29]))
-    digH.append((calib[30]<< 4) | ((calib[29] >> 4) & 0x0F))
-    digH.append( calib[31] )
-    
-    for i in range(1,2):
-        if digT[i] & 0x8000:
-            digT[i] = (-digT[i] ^ 0xFFFF) + 1
+        digT.append((calib[1] << 8) | calib[0])
+        digT.append((calib[3] << 8) | calib[2])
+        digT.append((calib[5] << 8) | calib[4])
+        digP.append((calib[7] << 8) | calib[6])
+        digP.append((calib[9] << 8) | calib[8])
+        digP.append((calib[11]<< 8) | calib[10])
+        digP.append((calib[13]<< 8) | calib[12])
+        digP.append((calib[15]<< 8) | calib[14])
+        digP.append((calib[17]<< 8) | calib[16])
+        digP.append((calib[19]<< 8) | calib[18])
+        digP.append((calib[21]<< 8) | calib[20])
+        digP.append((calib[23]<< 8) | calib[22])
+        digH.append( calib[24] )
+        digH.append((calib[26]<< 8) | calib[25])
+        digH.append( calib[27] )
+        digH.append((calib[28]<< 4) | (0x0F & calib[29]))
+        digH.append((calib[30]<< 4) | ((calib[29] >> 4) & 0x0F))
+        digH.append( calib[31] )
+        
+        for i in range(1,2):
+            if digT[i] & 0x8000:
+                digT[i] = (-digT[i] ^ 0xFFFF) + 1
 
-    for i in range(1,8):
-        if digP[i] & 0x8000:
-            digP[i] = (-digP[i] ^ 0xFFFF) + 1
+        for i in range(1,8):
+            if digP[i] & 0x8000:
+                digP[i] = (-digP[i] ^ 0xFFFF) + 1
 
-    for i in range(0,6):
-        if digH[i] & 0x8000:
-            digH[i] = (-digH[i] ^ 0xFFFF) + 1  
+        for i in range(0,6):
+            if digH[i] & 0x8000:
+                digH[i] = (-digH[i] ^ 0xFFFF) + 1
+    except IOError as e:
+        logging.error(f"キャリブレーションパラメータの取得に失敗しました: {e}")
+        # パラメータ取得に失敗した場合、以降の計算ができないため空にする
+        digT.clear()
+        digP.clear()
+        digH.clear()
+
 
 def readData() -> dict[str, float]:
-    data = []
-    for i in range (0xF7, 0xF7+8):
-        data.append(bus.read_byte_data(i2c_address,i))
-    pres_raw = (data[0] << 12) | (data[1] << 4) | (data[2] >> 4)
-    temp_raw = (data[3] << 12) | (data[4] << 4) | (data[5] >> 4)
-    hum_raw  = (data[6] << 8)  |  data[7]
-    
-    temperature = compensate_T(temp_raw)
-    pressure = compensate_P(pres_raw)
-    humidity = compensate_H(hum_raw)
-    return {"temperature": temperature, "pressure": pressure, "humidity": humidity}
+    if bus is None:
+        logging.error("I2Cバスが利用できません。")
+        return {"temperature": 0.0, "pressure": 0.0, "humidity": 0.0}
+    if not all([digT, digP, digH]):
+        logging.error("キャリブレーションパラメータが不完全なため、読み取りをスキップします。")
+        return {"temperature": 0.0, "pressure": 0.0, "humidity": 0.0}
+        
+    try:
+        data = []
+        for i in range (0xF7, 0xF7+8):
+            data.append(bus.read_byte_data(i2c_address,i))
+        pres_raw = (data[0] << 12) | (data[1] << 4) | (data[2] >> 4)
+        temp_raw = (data[3] << 12) | (data[4] << 4) | (data[5] >> 4)
+        hum_raw  = (data[6] << 8)  |  data[7]
+        
+        temperature = compensate_T(temp_raw)
+        pressure = compensate_P(pres_raw)
+        humidity = compensate_H(hum_raw)
+        return {"temperature": temperature, "pressure": pressure, "humidity": humidity}
+    except IOError as e:
+        logging.error(f"センサーデータの読み取りに失敗しました: {e}")
+        return {"temperature": 0.0, "pressure": 0.0, "humidity": 0.0}
+
 
 def compensate_P(adc_P: float) -> float:
     global  t_fine
@@ -136,8 +173,15 @@ def setup():
     writeReg(0xF5,config_reg)
 
 def init():
-    setup()
-    get_calib_param()
+    if bus:
+        setup()
+        get_calib_param()
 
-
-
+if __name__ == '__main__':
+    init()
+    if bus:
+        bme280_data = readData()
+        if bme280_data:
+            print(f"Temperature: {bme280_data['temperature']:.2f} C")
+            print(f"Pressure: {bme280_data['pressure']:.2f} hPa")
+            print(f"Humidity: {bme280_data['humidity']:.2f} %")

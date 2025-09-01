@@ -1,15 +1,23 @@
 from gpiozero import RGBLED
 from gpiozero.pins.pigpio import PiGPIOFactory
 from time import sleep
+import logging
 
-PIN_RED=5
-PIN_GREEN=6
-PIN_BLUE=13
+# loggingの設定
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+PIN_RED=17
+PIN_GREEN=27
+PIN_BLUE=22
 
 def init_led():
-    factory=PiGPIOFactory()
-    led = RGBLED(PIN_RED, PIN_GREEN, PIN_BLUE, pin_factory=factory)
-    return led
+    try:
+        factory=PiGPIOFactory()
+        led = RGBLED(PIN_RED, PIN_GREEN, PIN_BLUE, pin_factory=factory)
+        return led
+    except Exception as e:
+        logging.error(f"LEDの初期化に失敗しました: {e}")
+        return None
 
 def hsv_to_rgb(h, s, v):
     if s == 0.0: return (v, v, v)
@@ -26,55 +34,63 @@ def hsv_to_rgb(h, s, v):
 
 def main():
     led = init_led()
+    if led is None:
+        logging.error("LEDが初期化されていないため、プログラムを終了します。")
+        return
 
-    print("Cycling through basic colors...")
-    
-    # 基本色を順番に点灯
-    print("Red")
-    led.color = (1, 0, 0) # (R, G, B)のタプルで色を設定 (0.0 - 1.0)
+    try:
+        print("Cycling through basic colors...")
+        
+        # 基本色を順番に点灯
+        print("Red")
+        led.color = (1, 0, 0) # (R, G, B)のタプルで色を設定 (0.0 - 1.0)
+        sleep(1)
 
-    print("Green")
-    led.color = (0, 1, 0)
-    sleep(1)
+        print("Green")
+        led.color = (0, 1, 0)
+        sleep(1)
 
-    print("Blue")
-    led.color = (0, 0, 1)
-    sleep(1)
+        print("Blue")
+        led.color = (0, 0, 1)
+        sleep(1)
 
-    print("Yellow")
-    led.color = (1, 1, 0)
-    sleep(1)
+        print("Yellow")
+        led.color = (1, 1, 0)
+        sleep(1)
 
-    print("Cyan")
-    led.color = (0, 1, 1)
-    sleep(1)
+        print("Cyan")
+        led.color = (0, 1, 1)
+        sleep(1)
 
-    print("Magenta")
-    led.color = (1, 0, 1)
-    sleep(1)
+        print("Magenta")
+        led.color = (1, 0, 1)
+        sleep(1)
 
-    print("White")
-    led.color = (1, 1, 1)
-    sleep(1)
+        print("White")
+        led.color = (1, 1, 1)
+        sleep(1)
 
-    print("Off")
-    led.color = (0, 0, 0) # 全てオフで消灯
-    sleep(1)
+        print("Off")
+        led.color = (0, 0, 0) # 全てオフで消灯
+        sleep(1)
 
-    # グラデーションを表現
-    print("Fading through the rainbow...")
-    steps = 100
-    for i in range(steps + 1):
-        hue = i / steps
+        # グラデーションを表現
+        print("Fading through the rainbow...")
+        steps = 100
+        for i in range(steps + 1):
+            hue = i / steps
 
-        r, g, b = hsv_to_rgb(hue, 1.0, 1.0)
+            r, g, b = hsv_to_rgb(hue, 1.0, 1.0)
 
-        led.color = (r, g, b)
-        sleep(0.05)
+            led.color = (r, g, b)
+            sleep(0.05)
 
-    led.off()
-    print("Program finished.")
+    except Exception as e:
+        logging.error(f"LEDの制御中にエラーが発生しました: {e}")
+    finally:
+        if led:
+            led.off()
+        print("Program finished.")
 
 if __name__=="__main__":
     main()
-

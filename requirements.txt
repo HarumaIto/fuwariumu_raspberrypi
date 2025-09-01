@@ -1,0 +1,8 @@
+requests
+pydub
+numpy
+matplotlib
+simpleaudio
+pyaudio
+gpiozero
+smbus2
