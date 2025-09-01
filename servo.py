@@ -37,8 +37,8 @@ def main():
 		servo_13.set_angle(-90)
 
 		for _ in range(5):
-	    		move_servo_at_speed(servo_12, -90, 75, 2)
-           		move_servo_at_speed(servo_13, -90, 75, 2) 
+			move_servo_at_speed(servo_12, -90, 75, 2)
+			move_servo_at_speed(servo_13, -90, 75, 2) 
             		sleep(1)
 			move_servo_at_speed(servo_12, 75, -90, 3)
 			move_servo_at_speed(servo_13, 75, -90, 3)
