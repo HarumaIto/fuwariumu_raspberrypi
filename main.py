@@ -42,7 +42,12 @@ def play_completed_task(led_strip, task_response: dict):
     """完了したタスクの音声とLEDパターンを再生する"""
     logging.info(f"タスク完了。結果: {task_response.get('result')}")
     try:
-        audio_data = get_audio_data()
+        base64_audio_data = task_response.get('result')
+        if not base64_audio_data:
+            logging.error("タスクレスポンスに音声データが含まれていません。")
+            return
+
+        audio_data = get_audio_data(base64_audio_data)
         if not audio_data:
             logging.error("再生用の音声データを取得できませんでした。")
             return

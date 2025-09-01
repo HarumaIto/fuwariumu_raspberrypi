@@ -2,20 +2,22 @@ from pydub import AudioSegment
 from pydub.exceptions import CouldntDecodeError
 import simpleaudio as sa
 import logging
+import base64
+import io
 
 # loggingの設定
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-AUDIO_FILE = "/home/intern/Music/school_hallway_sound.mp3"
-
-def get_audio_data():
+def get_audio_data(base64_data: str):
     try:
-        audio = AudioSegment.from_mp3(AUDIO_FILE)
+        # Base64データをデコード
+        audio_data = base64.b64decode(base64_data)
+        # デコードしたデータをインメモリファイルとして扱う
+        audio_file = io.BytesIO(audio_data)
+        
+        audio = AudioSegment.from_mp3(audio_file)
         mono_audio = audio.set_channels(1)
         return mono_audio
-    except FileNotFoundError:
-        logging.error(f"音声ファイルが見つかりません: {AUDIO_FILE}")
-        return None
     except CouldntDecodeError as e:
         logging.error(f"音声ファイルのデコードに失敗しました: {e}")
         return None
