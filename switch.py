@@ -36,7 +36,6 @@ if __name__ == '__main__':
     print("終了するには Ctrl+C を押してください。")
 
     switch_device = setup_switch(_handle_test_press)
-
     if switch_device:
         try:
             while True:

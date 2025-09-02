@@ -83,7 +83,7 @@ def get_status(task_ids: list[str]) -> bool | None:
         payload = {"task_ids": task_ids}
         response = requests.get(url, params=payload, timeout=10)
         response.raise_for_status()
-        return response
+        return response.json()
     except requests.exceptions.RequestException as e:
         logging.error(f"ステータスの取得に失敗しました: {e}")
         return None

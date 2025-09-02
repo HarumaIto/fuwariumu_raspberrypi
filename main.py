@@ -20,7 +20,7 @@ from servo import Servo
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 WAVE_OUTPUT_FILENAME = "output.wav"
 MP3_OUTPUT_FILENAME = "output.mp3"
-RECORDING_SECONDS = 180
+RECORDING_SECONDS = 60
 
 # --- グローバル変数 ---
 led_strip = None
@@ -50,8 +50,8 @@ def play_completed_task(led_strip, task_id, response: dict):
         play_obj = play_audio(audio_data)
         if not play_obj: return
         bpm = response.get("bpm", 60)
-        min_color = response.get("min_color")
-        max_color = response.get("max_color")
+        min_color = response.get("min_color", "#000000")
+        max_color = response.get("max_color", "#ffffff")
         led_blink_reflect_music(led_strip, audio_data, bpm, play_obj, min_color, max_color)
         logging.info("再生が完了しました。")
     except Exception as e:
@@ -141,14 +141,12 @@ def main():
     
         count = 0
         while True:
-            if count > 30 and task_ids:
+            if count > 60 and task_ids:
                 count = 0
                 response = get_status(task_ids)
                 logging.info(response)
                 if response == True:
-                    rotate.move(30, 20)
-                    time.sleep(2)
-                    rotate.move(0, 20)
+                    rotate.move_with_profile([0, 0.05, 0.15, 0.25, 0.45, 1, 2, 2.25, 2.75], [90, -90, 90, -90, 80, 90, 90, -80, -90])
 
             # --- スイッチイベントの処理 ---
             try:
