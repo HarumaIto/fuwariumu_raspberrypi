@@ -1,6 +1,7 @@
 import logging
 import time
-import multiprocessing
+import threading
+import queue
 from pydub import AudioSegment
 
 # プロジェクト内のモジュール
@@ -19,15 +20,12 @@ WAVE_OUTPUT_FILENAME = "output.wav"
 MP3_OUTPUT_FILENAME = "output.mp3"
 RECORDING_SECONDS = 180
 
-# --- グローバル変数 (メインプロセスのみ) ---
+# --- グローバル変数 ---
 led_strip = None
 task_ids = []
-
-# --- プロセス間通信用のオブジェクト ---
-# 注意: これらのオブジェクトはfork前に一度だけ生成される
-stop_recording_event = multiprocessing.Event()
-switch_event_queue = multiprocessing.Queue()
-task_id_queue = multiprocessing.Queue()
+recording_thread = None
+stop_recording_event = threading.Event()
+event_queue = queue.Queue()
 
 def wav_to_mp3(wav_path: str, mp3_path: str) -> bool:
     logging.info(f"{wav_path} を {mp3_path} に変換します...")
@@ -54,29 +52,22 @@ def play_completed_task(led_strip, task_response: dict):
     except Exception as e:
         logging.error(f"音声・LEDの再生中にエラーが発生しました: {e}")
 
-# ===================================================================
-# === 録音プロセスで実行される関数群 (ここから) ===
-# ===================================================================
+def record_and_post_data():
+    """【別スレッドで実行】録音、センサーデータ取得、API投稿を行う"""
+    stop_recording_event.clear()
 
-def record_and_post_data_process(stop_event, task_queue):
-    """【別プロセスで実行】録音、センサーデータ取得、API投稿を行う"""
-    # このプロセス内で必要な初期化を行う
-    bme280_sample.init()
-    tsl2572_sample.init()
-    stop_event.clear()
-
-    logging.info("録音プロセス: 処理を開始します。")
-    record_status = record_audio(RECORDING_SECONDS, WAVE_OUTPUT_FILENAME, stop_event)
+    logging.info("録音スレッド: 処理を開始します。")
+    record_status = record_audio(RECORDING_SECONDS, WAVE_OUTPUT_FILENAME, stop_recording_event)
 
     if record_status == 'interrupted':
-        logging.info("録音プロセス: 録音が中断されたため終了します。")
+        logging.info("録音スレッド: 録音が中断されたため終了します。")
         return
     if record_status == 'error':
-        logging.error("録音プロセス: 録音に失敗しました。")
+        logging.error("録音スレッド: 録音に失敗しました。")
         return
 
     if not wav_to_mp3(WAVE_OUTPUT_FILENAME, MP3_OUTPUT_FILENAME):
-        logging.error("録音プロセス: MP3への変換に失敗しました。")
+        logging.error("録音スレッド: MP3への変換に失敗しました。")
         return
 
     bme_data = bme280_sample.readData()
@@ -85,25 +76,19 @@ def record_and_post_data_process(stop_event, task_queue):
     response = post_data(MP3_OUTPUT_FILENAME, bme_data, tsl_data)
     if response and "task_id" in response:
         new_task_id = response["task_id"]
-        logging.info(f"録音プロセス: データの投稿に成功。Task ID: {new_task_id}")
-        task_queue.put(new_task_id) # キュー経由でメインプロセスに通知
+        logging.info(f"録音スレッド: データの投稿に成功。Task ID: {new_task_id}")
+        task_ids.append(new_task_id)
     else:
-        logging.error("録音プロセス: データの投稿に失敗。")
-    logging.info("録音プロセス: 正常に終了します。")
-
-# ===================================================================
-# === メインプロセスで実行される関数群 (ここから) ===
-# ===================================================================
+        logging.error("録音スレッド: データの投稿に失敗。")
+    logging.info("録音スレッド: 正常に終了します。")
 
 def handle_switch_press():
     """【軽量な割り込みハンドラ】キューにイベントを追加するだけ"""
-    # 割り込みハンドラ内でのloggingは競合の可能性があるためコメントアウト推奨
-    # logging.info("スイッチ・イベントをキューに追加しました。")
-    switch_event_queue.put('SWITCH_PRESSED')
+    event_queue.put('SWITCH_PRESSED')
 
-def process_switch_event(current_process):
-    """スイッチイベントを処理する（メインプロセスで実行）"""
-    global led_strip
+def process_switch_event():
+    """スイッチイベントを処理する"""
+    global led_strip, recording_thread
     logging.info("スイッチ・イベントを処理します。")
 
     # 再生可能なタスクを検索
@@ -116,55 +101,42 @@ def process_switch_event(current_process):
 
     if available_task:
         logging.info(f"再生タスク {available_task['task_id']} が見つかりました。")
-        if current_process and current_process.is_alive():
-            logging.info("実行中の録音プロセスに停止信号を送信します。")
+        if recording_thread and recording_thread.is_alive():
+            logging.info("実行中の録音スreadに停止信号を送信します。")
             stop_recording_event.set()
-            current_process.join(timeout=5) # タイムアウト付きで待つ
-            if current_process.is_alive():
-                logging.warning("録音プロセスが時間内に終了しませんでした。強制終了します。")
-                current_process.terminate()
-            logging.info("録音プロセスが停止しました。")
+            recording_thread.join() # スレッドが終了するのを待つ
+            logging.info("録音スレッドが停止しました。")
         
         play_completed_task(led_strip, available_task)
         if available_task['task_id'] in task_ids:
             task_ids.remove(available_task['task_id'])
     else:
         logging.info("再生できる完了済みタスクがありませんでした。")
-    return None # 新しいプロセスを返さない
 
 def main():
-    global led_strip
-    recording_process = None
+    global led_strip, recording_thread
     try:
+        # 初期化処理
         led_strip = init_led()
+        bme280_sample.init()
+        tsl2572_sample.init()
         setup_switch(handle_switch_press)
-        logging.info("メインプロセス: アプリケーションを開始します。")
+        logging.info("アプリケーションを開始します。")
 
         while True:
-            # --- 完了したタスクIDを録音プロセスから受信 ---
-            try:
-                new_task_id = task_id_queue.get_nowait()
-                task_ids.append(new_task_id)
-                logging.info(f"メインプロセス: 新しいタスクID {new_task_id} を受信しました。")
-            except multiprocessing.queues.Empty:
-                pass
-
             # --- スイッチイベントの処理 ---
             try:
-                event = switch_event_queue.get_nowait()
+                event = event_queue.get_nowait()
                 if event == 'SWITCH_PRESSED':
-                    recording_process = process_switch_event(recording_process)
-            except multiprocessing.queues.Empty:
+                    process_switch_event()
+            except queue.Empty:
                 pass
 
-            # --- 録音プロセスの管理 ---
-            if recording_process is None or not recording_process.is_alive():
-                logging.info("メインプロセス: 新しい録音プロセスを開始します。")
-                recording_process = multiprocessing.Process(
-                    target=record_and_post_data_process, 
-                    args=(stop_recording_event, task_id_queue)
-                )
-                recording_process.start()
+            # --- 録音スレッドの管理 ---
+            if recording_thread is None or not recording_thread.is_alive():
+                logging.info("メインループ: 新しい録音スレッドを開始します。")
+                recording_thread = threading.Thread(target=record_and_post_data)
+                recording_thread.start()
             
             time.sleep(0.2)
 
@@ -173,16 +145,13 @@ def main():
     except Exception as e:
         logging.critical(f"メインループで予期せぬエラー: {e}", exc_info=True)
     finally:
-        if recording_process and recording_process.is_alive():
-            logging.info("シャットダウン前に録音プロセスを停止します...")
+        if recording_thread and recording_thread.is_alive():
+            logging.info("シャットダウン前に録音スレッドを停止します...")
             stop_recording_event.set()
-            recording_process.join(timeout=5)
-            if recording_process.is_alive():
-                recording_process.terminate()
+            recording_thread.join()
         if led_strip:
             led_strip.off()
         logging.info("アプリケーションをシャットダウンしました。")
 
 if __name__ == "__main__":
-    # マルチプロセス利用時は、エントリーポイントを保護することが必須
     main()
