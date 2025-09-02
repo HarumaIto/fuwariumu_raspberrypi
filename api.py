@@ -63,3 +63,17 @@ def get_task(task_id: str) -> dict[str, any] | None:
     except json.JSONDecodeError as e:
         logging.error(f"レスポンスJSONのデコードに失敗しました: {e}")
         return None
+
+def get_mock_task() -> dict[str, any] | None:
+    url = f"{BASE_PATH}/api/v1/get_mock_data"
+    try:
+        response = requests.get(url, timeout=5)
+        response.raise_for_status()
+        return response.json()
+    except requests.exceptions.RequestException as e:
+        logging.error(f"モックの取得に失敗しました: {e}")
+        return None
+    except json.JSONDecodeError as e:
+        logging.error(f"レスポンスのでコードに失敗しました: {e}")
+        return None
+

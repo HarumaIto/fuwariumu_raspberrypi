@@ -3,12 +3,13 @@ import time
 import threading
 import queue
 from pydub import AudioSegment
+import argparse
 
 # プロジェクト内のモジュール
 import bme280_sample
 import tsl2572_sample
 from record_sample import record_audio
-from api import post_data, get_task
+from api import post_data, get_task, get_mock_task
 from led import init_led
 from play_audio import get_audio_data, play_audio
 from jellyfish import led_blink_reflect_music
@@ -88,16 +89,22 @@ def handle_switch_press():
 
 def process_switch_event():
     """スイッチイベントを処理する"""
-    global led_strip, recording_thread
-    logging.info("スイッチ・イベントを処理します。")
+    global is_mock, led_strip, recording_thread
+    logging.info(f"スイッチ・イベントを処理します。{is_mock}")
 
     # 再生可能なタスクを検索
     available_task = None
-    for task_id in task_ids:
-        task_info = get_task(task_id)
+
+    if is_mock:
+        task_info = get_mock_task()
         if task_info and task_info.get("status") == "completed":
             available_task = task_info
-            break
+    else: 
+        for task_id in task_ids:
+            task_info = get_task(task_id)
+            if task_info and task_info.get("status") == "completed":
+                available_task = task_info
+                break
 
     if available_task:
         logging.info(f"再生タスク {available_task['task_id']} が見つかりました。")
@@ -114,7 +121,11 @@ def process_switch_event():
         logging.info("再生できる完了済みタスクがありませんでした。")
 
 def main():
-    global led_strip, recording_thread
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--is_mock", action="store_true")
+    args = parser.parse_args()
+    global is_mock, led_strip, recording_thread
+    is_mock = args.is_mock
     try:
         # 初期化処理
         led_strip = init_led()
