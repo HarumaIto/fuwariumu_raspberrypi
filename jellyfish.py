@@ -1,8 +1,10 @@
 import numpy as np
+import random
 import matplotlib.pyplot as plt
 from time import sleep, perf_counter
 from led import hsv_to_rgb, init_led
 from play_audio import get_audio_data, play_audio
+from colorsys import rgb_to_hsv 
 import logging
 
 # loggingの設定
@@ -10,13 +12,24 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 
 GAIN = 5
 
-def led_blink_reflect_music(led, mono_audio, play_obj):
+def hex_to_rgb(hex_color):
+    hex_color = hex_color.lstrip('#')
+    return tuple(int(hex_color[i:i+2], 16) / 255.0 for i in (0, 2, 4))
+
+def lerp(a, b, t):
+    return a + (b - a) * t
+
+def led_blink_reflect_music(led, mono_audio, play_obj, min_color, max_color):
     # ledがNoneの場合、何もしない
     if led is None:
         logging.warning("LEDが初期化されていないため、LEDの点滅処理をスキップします。")
         # 音声だけ再生して終了
         play_obj.wait_done()
         return
+    min_rgb = hex_to_rgb(min_color)
+    max_rgb = hex_to_rgb(max_color)
+    min_hsv = rgb_to_hsv(*min_rgb)
+    max_hsv = rgb_to_hsv(*max_rgb)
 
     samples = np.array(mono_audio.get_array_of_samples())
     samples = samples.astype(np.float32) / np.iinfo(samples.dtype).max
@@ -30,6 +43,8 @@ def led_blink_reflect_music(led, mono_audio, play_obj):
 
     current_time = 0
 
+    current_hue = random.random()
+
     while play_obj.is_playing():
         start_time = perf_counter()
         current_sample = int(current_time * sample_rate)
@@ -39,7 +54,6 @@ def led_blink_reflect_music(led, mono_audio, play_obj):
         if chunk_start >= chunk_end:
             break
 
-        print(current_time)
         chunk = samples[chunk_start:chunk_end]
 
         amplitude = np.mean(np.abs(chunk))
@@ -48,7 +62,17 @@ def led_blink_reflect_music(led, mono_audio, play_obj):
         normalized_amplitude = np.sqrt(normalized_amplitude)
         normalized_amplitude = max(0.0, min(1.0, normalized_amplitude))
 
-        led.color = hsv_to_rgb(normalized_amplitude, normalized_amplitude, normalized_amplitude)
+        hue = lerp(min_hsv[0], max_hsv[0], normalized_amplitude, )
+        saturation = lerp(min_hsv[1], max_hsv[1], normalized_amplitude)
+        value = lerp(min_hsv[2], max_hsv[2], normalized_amplitude)
+
+        current_hue = current_hue + (random.random() - 0.5) * 0.01
+        if current_hue < 0:
+            current_hue += 1.0
+        elif current_hue > 1.0:
+            current_hue -= 1.0
+
+        led.color = hsv_to_rgb(hue, saturation, value)
 
         end_time = perf_counter()
         elapsed_time = (end_time - start_time) / 60

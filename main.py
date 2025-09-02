@@ -39,16 +39,18 @@ def wav_to_mp3(wav_path: str, mp3_path: str) -> bool:
         logging.error(f"MP3への変換中にエラーが発生しました: {e}")
         return False
 
-def play_completed_task(led_strip, task_response: dict):
-    logging.info(f"タスク再生開始: {task_response.get('task_id')}")
+def play_completed_task(led_strip, task_id, response: dict):
+    logging.info(f"タスク再生開始: {task_id}")
     try:
-        base64_audio_data = task_response.get('result')
+        base64_audio_data = response.get('result')
         if not base64_audio_data: return
         audio_data = get_audio_data(base64_audio_data)
         if not audio_data: return
         play_obj = play_audio(audio_data)
         if not play_obj: return
-        led_blink_reflect_music(led_strip, audio_data, play_obj)
+        min_color = response.get("min_color")
+        max_color = response.get("max_color")
+        led_blink_reflect_music(led_strip, audio_data, play_obj, min_color, max_color)
         logging.info("再生が完了しました。")
     except Exception as e:
         logging.error(f"音声・LEDの再生中にエラーが発生しました: {e}")
@@ -93,30 +95,29 @@ def process_switch_event():
     logging.info(f"スイッチ・イベントを処理します。{is_mock}")
 
     # 再生可能なタスクを検索
-    available_task = None
+    available_tasks = {} 
 
     if is_mock:
         task_info = get_mock_task()
         if task_info and task_info.get("status") == "completed":
-            available_task = task_info
+            available_tasks["mock"] = task_info
     else: 
         for task_id in task_ids:
             task_info = get_task(task_id)
             if task_info and task_info.get("status") == "completed":
-                available_task = task_info
+                available_tasks[task_id] = task_info
                 break
 
-    if available_task:
-        logging.info(f"再生タスク {available_task['task_id']} が見つかりました。")
+    for _ in range(len(available_tasks)):
+        key, value = available_tasks.popitem()
+        logging.info(f"再生タスク {key} が見つかりました。")
         if recording_thread and recording_thread.is_alive():
             logging.info("実行中の録音スreadに停止信号を送信します。")
             stop_recording_event.set()
             recording_thread.join() # スレッドが終了するのを待つ
             logging.info("録音スレッドが停止しました。")
         
-        play_completed_task(led_strip, available_task)
-        if available_task['task_id'] in task_ids:
-            task_ids.remove(available_task['task_id'])
+        play_completed_task(led_strip, key, value)
     else:
         logging.info("再生できる完了済みタスクがありませんでした。")
 
