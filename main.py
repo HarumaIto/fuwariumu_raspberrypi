@@ -1,5 +1,6 @@
 import logging
 import time
+import threading
 from pydub import AudioSegment
 
 # プロジェクト内のモジュール
@@ -21,6 +22,8 @@ RECORDING_SECONDS = 180
 # --- グローバル変数 ---
 led_strip = None
 task_ids = []
+recording_thread = None
+stop_recording_event = threading.Event()
 
 def wav_to_mp3(wav_path: str, mp3_path: str) -> bool:
     """WAVファイルをMP3形式に変換する"""
@@ -39,7 +42,7 @@ def wav_to_mp3(wav_path: str, mp3_path: str) -> bool:
 
 def play_completed_task(led_strip, task_response: dict):
     """完了したタスクの音声とLEDパターンを再生する"""
-    logging.info(f"タスク完了。結果: {task_response.get('result')}")
+    logging.info(f"タスク再生開始: {task_response.get('task_id')}")
     try:
         base64_audio_data = task_response.get('result')
         if not base64_audio_data:
@@ -58,38 +61,37 @@ def play_completed_task(led_strip, task_response: dict):
         
         logging.info("音声とLEDパターンの再生を開始します。")
         led_blink_reflect_music(led_strip, audio_data, play_obj)
-        
         logging.info("再生が完了しました。")
         
     except Exception as e:
         logging.error(f"音声・LEDの再生中にエラーが発生しました: {e}")
 
-def check_and_execute_tasks(led_strip):
-    """APIでタスクの状態を確認し、完了していれば再生処理を実行する"""
+def find_available_task() -> dict | None:
+    """再生可能な完了済みタスクを検索する"""
     if not task_ids:
-        logging.info("チェック対象のタスクがありません。")
-        return
-        
-    logging.info(f"{len(task_ids)}個のタスクの状態を確認します。")
-    # リストのコピーに対してループを回し、安全な要素の削除を可能にする
-    for task_id in task_ids[:]:
+        return None
+    
+    logging.info(f"{len(task_ids)}個のタスクから再生可能なものを探します。")
+    for task_id in task_ids:
         task_info = get_task(task_id)
-        if not task_info:
-            logging.error(f"タスク {task_id} の状態取得に失敗しました。")
-            continue
-
-        if task_info.get("status") == "completed":
-            play_completed_task(led_strip, task_info)
-            task_ids.remove(task_id)
-            # 完了したタスクが見つかったら再生して終了
-            break
-        elif task_info.get("status") == "failed":
-            logging.error(f"タスク {task_id} は失敗しました。理由: {task_info.get('result')}")
-            task_ids.remove(task_id)
+        if task_info and task_info.get("status") == "completed":
+            logging.info(f"再生可能なタスクが見つかりました: {task_id}")
+            return task_info
+    logging.info("再生可能なタスクはありませんでした。")
+    return None
 
 def record_and_post_data():
-    """録音、センサーデータ取得、APIへのデータ投稿を行う"""
-    if not record_audio(RECORDING_SECONDS, WAVE_OUTPUT_FILENAME):
+    """録音、センサーデータ取得、APIへのデータ投稿を行う（中断可能）"""
+    global stop_recording_event
+    stop_recording_event.clear()
+    
+    logging.info("録音スレッドを開始します。")
+    record_status = record_audio(RECORDING_SECONDS, WAVE_OUTPUT_FILENAME, stop_recording_event)
+
+    if record_status == 'interrupted':
+        logging.info("録音が中断されたため、後続処理をスキップします。")
+        return
+    if record_status == 'error':
         logging.error("録音に失敗しました。このサイクルをスキップします。")
         return
 
@@ -106,19 +108,38 @@ def record_and_post_data():
         task_ids.append(response["task_id"])
     else:
         logging.error("データの投稿に失敗したか、レスポンスにtask_idが含まれていません。")
+    logging.info("録音スレッドを終了します。")
 
 def handle_switch_press():
     """
     スイッチが押された時に呼び出されるコールバック関数。
-    完了済みのタスクを確認して再生する。
+    完了済みのタスクを探し、あれば録音を中断して再生する。
     """
-    global led_strip
+    global led_strip, recording_thread
     logging.info("スイッチが押されました。完了したタスクを確認します。")
-    check_and_execute_tasks(led_strip)
+
+    available_task = find_available_task()
+
+    if available_task:
+        logging.info(f"再生タスク {available_task['task_id']} のために、現在の処理を中断します。")
+        
+        if recording_thread and recording_thread.is_alive():
+            logging.info("実行中の録音スレッドに停止信号を送ります。")
+            stop_recording_event.set()
+            # スレッドが終了し、オーディオデバイスが解放されるのを待つ
+            recording_thread.join()
+            logging.info("録音スレッドが停止しました。")
+        
+        play_completed_task(led_strip, available_task)
+        # 再生済みのタスクをリストから削除
+        if available_task['task_id'] in task_ids:
+            task_ids.remove(available_task['task_id'])
+    else:
+        logging.info("再生できる完了済みタスクがありませんでした。")
 
 def main():
     """アプリケーションのメイン関数"""
-    global led_strip
+    global led_strip, recording_thread
     try:
         led_strip = init_led()
         bme280_sample.init()
@@ -127,15 +148,23 @@ def main():
 
         logging.info("アプリケーションを開始します。")
         while True:
-            check_and_execute_tasks(led_strip)
-            time.sleep(5)
-            record_and_post_data()
+            if recording_thread is None or not recording_thread.is_alive():
+                # 録音スレッドが実行中でなければ、新しいスレッドを開始
+                recording_thread = threading.Thread(target=record_and_post_data)
+                recording_thread.start()
+            
+            time.sleep(10) # メインループのポーリング間隔
 
     except KeyboardInterrupt:
         logging.info("シャットダウンシグナルを受信しました。")
     except Exception as e:
         logging.critical(f"メインループで予期せぬエラーが発生しました: {e}", exc_info=True)
     finally:
+        if recording_thread and recording_thread.is_alive():
+            logging.info("シャットダウン前に、実行中の録音スレッドに停止信号を送ります...")
+            stop_recording_event.set()
+            recording_thread.join() # スレッドが終了するのを待つ
+
         if led_strip:
             led_strip.off()
         logging.info("アプリケーションをシャットダウンしました。")
