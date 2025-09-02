@@ -15,6 +15,9 @@ def init_led():
     try:
         factory=PiGPIOFactory()
         led = RGBLED(PIN_RED, PIN_GREEN, PIN_BLUE, pin_factory=factory)
+        led.color = (1, 1, 1)
+        sleep(1)
+        led.off()
         return led
     except Exception as e:
         logging.error(f"LEDの初期化に失敗しました: {e}")
