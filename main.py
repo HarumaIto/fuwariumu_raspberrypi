@@ -120,7 +120,7 @@ def main():
         led_strip = init_led()
         bme280_sample.init()
         tsl2572_sample.init()
-        setup_switch(handle_switch_press)
+        switch = setup_switch(handle_switch_press)
         logging.info("アプリケーションを開始します。")
 
         while True:
