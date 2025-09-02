@@ -24,5 +24,7 @@ pip install --upgrade pip
 echo "Installing dependencies from requirements.txt..."
 pip install -r requirements.txt
 
+sudo pigpiod
+
 echo "Setup complete. The virtual environment is active."
 echo "To deactivate it, simply run: deactivate"

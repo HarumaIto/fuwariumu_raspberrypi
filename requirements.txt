@@ -6,3 +6,4 @@ simpleaudio
 pyaudio
 gpiozero
 smbus2
+pigpio

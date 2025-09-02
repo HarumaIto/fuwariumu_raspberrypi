@@ -1,6 +1,7 @@
 from gpiozero import Button
 import logging
 import signal
+import time
 
 # --- 設定項目 ---
 SWITCH_PIN = 10
@@ -38,8 +39,8 @@ if __name__ == '__main__':
 
     if switch_device:
         try:
-            # プログラムが終了しないように待機
-            signal.pause()
+            while True:
+              time.sleep(1) 
         except KeyboardInterrupt:
             print("\nプログラムを終了します。")
         finally:

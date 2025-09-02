@@ -6,7 +6,7 @@ import logging
 # loggingの設定
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-BASE_PATH = "http://192.168.111.254:8000"
+BASE_PATH = "http://192.168.111.236:8000"
 
 def post_data(mp3_path, bme280_data, tsl2572_data) -> dict[str, str] | None:
     print("* posting data...")

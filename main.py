@@ -16,8 +16,7 @@ from switch import setup_switch
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 WAVE_OUTPUT_FILENAME = "output.wav"
 MP3_OUTPUT_FILENAME = "output.mp3"
-RECORDING_SECONDS = 5
-LOOP_SLEEP_SECONDS = 10
+RECORDING_SECONDS = 180 
 
 # --- グローバル変数 ---
 led_strip = None
@@ -128,10 +127,9 @@ def main():
 
         logging.info("アプリケーションを開始します。")
         while True:
-		check_and_execute_tasks(led_strip)
+            check_and_execute_tasks(led_strip)
+            time.sleep(5)
             record_and_post_data()
-            logging.info(f"録音サイクル完了。{LOOP_SLEEP_SECONDS}秒待機します。")
-            time.sleep(LOOP_SLEEP_SECONDS)
 
     except KeyboardInterrupt:
         logging.info("シャットダウンシグナルを受信しました。")
