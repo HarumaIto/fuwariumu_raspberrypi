@@ -23,6 +23,36 @@ def hex_to_rgb(hex_color):
 def lerp(a, b, t):
     return a + (b - a) * t
 
+def simulation_motion(bpm, period):
+    """
+    bpm: 曲のテンポ
+    period: 拍の回数
+    """
+    dt = 60 / bpm
+    duration = dt * period
+    times = []
+    angles = []
+
+    angle_bottom = 90
+    angle_top = -75
+    amplitude = angle_bottom - angle_top
+
+    elapsed = 0
+    while elapsed < duration:
+        phase = (elapsed % duration) / duration
+
+        if phase < 0.3:
+            angle = angle_bottom - amplitude * (1 - (1 - phase / 0.3)**2)
+        else:
+            angle = angle_bottom - amplitude * (1 - (phase - 0.3) / 0.7**0.5)
+
+        times.append(elapsed)
+        angles.append(angle)
+
+        elapsed += dt
+
+    return times, angles
+
 def led_blink_reflect_music(led, mono_audio, bpm, play_obj, min_color, max_color):
     rotate = Servo(ROTATE_SERVO)
     vertical = Servo(VERTICAL_SERVO)
@@ -55,11 +85,9 @@ def led_blink_reflect_music(led, mono_audio, bpm, play_obj, min_color, max_color
 
     tempo_count = 0
     while play_obj.is_playing():
-        logging.debug(f"Current time: {tempo_count}s")
         if tempo_count == 0 or tempo_count % 16 == 0:
-            vertical.move(-75, 30)
-        else:
-            vertical.move(-75, 10)
+            times, angles = simulation_motion(bpm, 16)
+            vertical.move_with_profile(times, angles)
 
         tempo_count += 1
         start_time = perf_counter()
