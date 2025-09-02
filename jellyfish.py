@@ -4,11 +4,15 @@ import matplotlib.pyplot as plt
 from time import sleep, perf_counter
 from led import hsv_to_rgb, init_led
 from play_audio import get_audio_data, play_audio
+from servo import Servo
 from colorsys import rgb_to_hsv 
 import logging
 
 # loggingの設定
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+ROTATE_SERVO = 12
+VERTICAL_SERVO = 13
 
 GAIN = 5
 
@@ -19,13 +23,17 @@ def hex_to_rgb(hex_color):
 def lerp(a, b, t):
     return a + (b - a) * t
 
-def led_blink_reflect_music(led, mono_audio, play_obj, min_color, max_color):
+def led_blink_reflect_music(led, mono_audio, bpm, play_obj, min_color, max_color):
+    rotate = Servo(ROTATE_SERVO)
+    vertical = Servo(VERTICAL_SERVO)
+
     # ledがNoneの場合、何もしない
-    if led is None:
+    if led is None and rotate is None and vertical is None:
         logging.warning("LEDが初期化されていないため、LEDの点滅処理をスキップします。")
         # 音声だけ再生して終了
         play_obj.wait_done()
         return
+
     min_rgb = hex_to_rgb(min_color)
     max_rgb = hex_to_rgb(max_color)
     min_hsv = rgb_to_hsv(*min_rgb)
@@ -45,7 +53,15 @@ def led_blink_reflect_music(led, mono_audio, play_obj, min_color, max_color):
 
     current_hue = random.random()
 
+    tempo_count = 0
     while play_obj.is_playing():
+        logging.debug(f"Current time: {tempo_count}s")
+        if tempo_count == 0 or tempo_count % 16 == 0:
+            vertical.move(-75, 30)
+        else:
+            vertical.move(-75, 10)
+
+        tempo_count += 1
         start_time = perf_counter()
         current_sample = int(current_time * sample_rate)
 
@@ -76,7 +92,7 @@ def led_blink_reflect_music(led, mono_audio, play_obj, min_color, max_color):
 
         end_time = perf_counter()
         elapsed_time = (end_time - start_time) / 60
-        sleep_time = 0.005
+        sleep_time = 60 / bpm - elapsed_time
         current_time = current_time + (sleep_time + elapsed_time)
         sleep(sleep_time)
 
@@ -86,7 +102,7 @@ def main():
     led = None
     try:
         led = init_led()
-
+        
         audio_data = get_audio_data()
         if audio_data is None:
             logging.error("音声データの取得に失敗しました。")
@@ -98,15 +114,17 @@ def main():
             return
     
         print("Playing audio")
-
-        led_blink_reflect_music(led, audio_data, play_obj)
+        bpm = 120
+        min_color = "#0000FF"  # 青
+        max_color = "#FF0000"  # 赤
+        led_blink_reflect_music(led, audio_data, bpm, play_obj, min_color, max_color)
 
         # play_obj.wait_done() は led_blink_reflect_music の中で呼ばれるか、
         # もしくはLED処理と並行して待つべきか設計によりますが、
         # 現状のコードでは led_blink_reflect_music がブロッキングするので、ここでは不要かもしれません。
         # ただし、LED処理をスキップした場合は待つ必要があります。
         if led is None and play_obj:
-             play_obj.wait_done()
+            play_obj.wait_done()
 
         print("Program finished.")
     except Exception as e:

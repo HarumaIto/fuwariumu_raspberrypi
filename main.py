@@ -48,9 +48,10 @@ def play_completed_task(led_strip, task_id, response: dict):
         if not audio_data: return
         play_obj = play_audio(audio_data)
         if not play_obj: return
+        bpm = response.get("bpm", 60)
         min_color = response.get("min_color")
         max_color = response.get("max_color")
-        led_blink_reflect_music(led_strip, audio_data, play_obj, min_color, max_color)
+        led_blink_reflect_music(led_strip, audio_data, bpm, play_obj, min_color, max_color)
         logging.info("再生が完了しました。")
     except Exception as e:
         logging.error(f"音声・LEDの再生中にエラーが発生しました: {e}")
