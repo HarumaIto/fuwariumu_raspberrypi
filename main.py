@@ -1,6 +1,7 @@
 import logging
 import time
 import threading
+import queue
 from pydub import AudioSegment
 
 # プロジェクト内のモジュール
@@ -24,6 +25,7 @@ led_strip = None
 task_ids = []
 recording_thread = None
 stop_recording_event = threading.Event()
+event_queue = queue.Queue()
 
 def wav_to_mp3(wav_path: str, mp3_path: str) -> bool:
     """WAVファイルをMP3形式に変換する"""
@@ -112,11 +114,19 @@ def record_and_post_data():
 
 def handle_switch_press():
     """
-    スイッチが押された時に呼び出されるコールバック関数。
-    完了済みのタスクを探し、あれば録音を中断して再生する。
+    【軽量な割り込みハンドラ】
+    スイッチが押されたら、キューにイベントを追加するだけ。
+    """
+    logging.info("スイッチ・イベントをキューに追加しました。")
+    event_queue.put('SWITCH_PRESSED')
+
+def process_switch_event():
+    """
+    【重い処理を行う関数】
+    スイッチが押された後の実際の処理を行う。
     """
     global led_strip, recording_thread
-    logging.info("スイッチが押されました。完了したタスクを確認します。")
+    logging.info("スイッチ・イベントを処理します。完了したタスクを確認します。")
 
     available_task = find_available_task()
 
@@ -148,12 +158,21 @@ def main():
 
         logging.info("アプリケーションを開始します。")
         while True:
+            # --- イベントキューの処理 ---
+            try:
+                event = event_queue.get_nowait()
+                if event == 'SWITCH_PRESSED':
+                    process_switch_event()
+            except queue.Empty:
+                pass # キューが空の場合は何もしない
+
+            # --- 録音スレッドの管理 ---
             if recording_thread is None or not recording_thread.is_alive():
                 # 録音スレッドが実行中でなければ、新しいスレッドを開始
                 recording_thread = threading.Thread(target=record_and_post_data)
                 recording_thread.start()
             
-            time.sleep(10) # メインループのポーリング間隔
+            time.sleep(0.1) # ループのポーリング間隔を短くして応答性を上げる
 
     except KeyboardInterrupt:
         logging.info("シャットダウンシグナルを受信しました。")
