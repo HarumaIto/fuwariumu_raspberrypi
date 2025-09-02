@@ -54,11 +54,10 @@ def simulation_motion(bpm, period):
     return times, angles
 
 def led_blink_reflect_music(led, mono_audio, bpm, play_obj, min_color, max_color):
-    rotate = Servo(ROTATE_SERVO)
     vertical = Servo(VERTICAL_SERVO)
 
     # ledがNoneの場合、何もしない
-    if led is None and rotate is None and vertical is None:
+    if led is None and vertical is None:
         logging.warning("LEDが初期化されていないため、LEDの点滅処理をスキップします。")
         # 音声だけ再生して終了
         play_obj.wait_done()
