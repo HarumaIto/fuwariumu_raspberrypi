@@ -9,11 +9,12 @@ import argparse
 import bme280_sample
 import tsl2572_sample
 from record_sample import record_audio
-from api import post_data, get_task, get_mock_task
+from api import post_data, get_task, get_mock_task, get_status
 from led import init_led
 from play_audio import get_audio_data, play_audio
 from jellyfish import led_blink_reflect_music
 from switch import setup_switch
+from servo import Servo
 
 # --- 設定項目 ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -135,8 +136,20 @@ def main():
         tsl2572_sample.init()
         switch = setup_switch(handle_switch_press)
         logging.info("アプリケーションを開始します。")
-
+        rotate = Servo(12)
+        #rotate.move(0, 15)
+    
+        count = 0
         while True:
+            if count > 30 and task_ids:
+                count = 0
+                response = get_status(task_ids)
+                logging.info(response)
+                if response == True:
+                    rotate.move(30, 20)
+                    time.sleep(2)
+                    rotate.move(0, 20)
+
             # --- スイッチイベントの処理 ---
             try:
                 event = event_queue.get_nowait()
@@ -150,7 +163,8 @@ def main():
                 logging.info("メインループ: 新しい録音スレッドを開始します。")
                 recording_thread = threading.Thread(target=record_and_post_data)
                 recording_thread.start()
-            
+
+            count += 0.2 
             time.sleep(0.2)
 
     except KeyboardInterrupt:
