@@ -2,7 +2,7 @@ import numpy as np
 import random
 import matplotlib.pyplot as plt
 from time import sleep, perf_counter
-from led import hsv_to_rgb, init_led
+from led import hsv_to_rgb, init_led, fade_out
 from play_audio import get_audio_data, play_audio
 from servo import Servo
 from colorsys import rgb_to_hsv 
@@ -124,7 +124,7 @@ def led_blink_reflect_music(led, mono_audio, bpm, play_obj, min_color, max_color
         current_time = current_time + (sleep_time + elapsed_time)
         sleep(sleep_time)
 
-    led.off()
+    fade_out(led, 3)
 
 def main():
     led = None

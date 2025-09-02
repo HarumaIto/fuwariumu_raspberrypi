@@ -1,6 +1,7 @@
 from gpiozero import RGBLED
 from gpiozero.pins.pigpio import PiGPIOFactory
 from time import sleep
+from colorsys import rgb_to_hsv
 import logging
 
 # loggingの設定
@@ -31,6 +32,21 @@ def hsv_to_rgb(h, s, v):
     if i == 3: return (p, q, v)
     if i == 4: return (t, p, v)
     if i == 5: return (v, p, q)
+
+def fade_out(led, duration, steps=100):
+    step_size = 1.0 / steps
+    delay_per_step = duration / steps
+
+    for i in range(steps):
+        brightness = 1.0 - (i * step_size)
+
+        r, g, b = led.color
+        h, s, _ = rgb_to_hsv(r, g, b)
+        led.color = hsv_to_rgb(h, s, brightness)
+
+        sleep(delay_per_step)
+    
+    led.off()
 
 def main():
     led = init_led()
