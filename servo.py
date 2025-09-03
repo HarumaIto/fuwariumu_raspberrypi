@@ -25,13 +25,14 @@ class Servo:
         self._profile_count = 0
 
         self._lock = threading.Lock()
-        self._thread = threading.Thread(target=self._loop, daemon=True)
         self._event = threading.Event()
+        self._thread = threading.Thread(target=self._loop, daemon=True)
         self._thread.start()
 
-    def __del__(self):
+    def close(self):
         self._event.set()
         self._thread.join(timeout=1.0)
+        self.servo.close()
 
     def move(self, angle, speed=120):
         # 指定した角度で指定した時間でサーボを動かす
@@ -165,11 +166,11 @@ class Servo:
         while not self._event.is_set():
             with self._lock:
                 if self._profile_mode:
-                    self.target_angle = self._profile_theta[self._profile_count]
-                    self._profile_count += 1
-                    if len(self._profile_theta) <= self._profile_count:
+                    if len(self._profile_theta)-1 <= self._profile_count:
                         self.profile_count = 0
                         self._profile_mode = False
+                    self.target_angle = self._profile_theta[self._profile_count]
+                    self._profile_count += 1
                 diff = self.target_angle - self._current
                 delta = self.speed * self.update_dt * (1 if 0<=diff else -1)
                 previous = self.servo.angle
@@ -187,13 +188,21 @@ def main():
     vertical = Servo(13)
     speed = 15
     try:
-        rotate.move_with_profile([0, 0.05, 0.15, 0.25, 0.45, 1, 2, 2.25, 2.75], [90, -90, 90, -90, 80, 90, 90, -80, -90])
-        sleep(4)
+        vertical.move_with_profile([0, 2, 4, 6], [90, -75, 90, -75])
+        sleep(7)
+        rotate.move_with_profile([0, 2, 4, 6], [90, -90, 90, -90])
+        sleep(7)
+        vertical.move_with_profile([0, 2, 4, 6], [90, -75, 90, -75])
+        rotate.move_with_profile([0, 2, 4, 6], [90, -90, 90, -90])
+        sleep(7)
         #for _ in range(3):
         #    rotate.move_with_profile([1, 1.1, 1.2, 1.3, 2], [0, 90, 0, 90, -80])
         #    sleep(4)
     except KeyboardInterrupt:
         print("stop")
+    finally:
+        rotate.close()
+        vertical.close()
     return
 
 

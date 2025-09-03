@@ -124,6 +124,7 @@ def led_blink_reflect_music(led, mono_audio, bpm, play_obj, min_color, max_color
         sleep(sleep_time)
 
     fade_out(led, 3)
+    vertical.close()
 
 def main():
     led = None
